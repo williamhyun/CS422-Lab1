@@ -1,10 +1,20 @@
 import matplotlib.pyplot as plt
 import IPToLocation
+import PingServers
 import requests
 
 from fetch_servers import fetch_ips
 
-#def createScatterPlot():
+
+def plotDistancesVSRtt(distances_list: list[float], rtt_list: list[float]):
+    plt.scatter(distances_list, rtt_list)
+
+    plt.xlabel("Distance (km)")
+    plt.ylabel("Average RTT (ms)")
+    plt.title("Distance vs Average RTT")
+
+    plt.savefig("distance_vs_rtt.pdf")
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -12,11 +22,16 @@ if __name__ == "__main__":
     local_ip = requests.get("https://api.ipify.org").text
 
     ip_list = fetch_ips()
+    ip_distances = IPToLocation.IPDistances(ip_list, api_key, local_ip)
+    ip_pings = PingServers.getPingIPList(ip_list)
 
-    distances = IPToLocation.IPDistances(ip_list, api_key, local_ip)
+    #TODO: skip and remove servers from list that aren't pingable (inside PingServers.py)
+    #      and also for servers we can't obtain coordinates for (inside IPToLocation.py)
+    avg_rtts = [ping_obj.avg_rtt for ping_obj in ip_pings]
 
-    print(len(ip_list))
-    print(ip_list)
+    plotDistancesVSRtt(ip_distances, avg_rtts)
 
-    print(len(distances.distances_list))
-    print(distances.distances_list)
+    #print(len(ip_list))
+    #print(ip_list)
+    #print(len(ip_distances.distances_list))
+    #print(ip_distances.distances_list)

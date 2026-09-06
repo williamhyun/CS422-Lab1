@@ -42,7 +42,7 @@ class IPDistances:
         )
 
     #Given 2 latitude and longitude coordinates, this function
-    #returns the distance between them
+    #returns the distance between them in Kilometers
     def calcDistance(self, lat1, lon1, lat2, lon2):
         R = 6371.0
 
