@@ -15,6 +15,9 @@ class IPDistances:
 
             self.distances_list.append(self.calcDistance(local_lat, local_lon, remote_ip_lat, remote_ip_lon))
 
+    #Given an IP and api key for the IPGeolocation API, this function
+    #returns a tuple of estimated latitude and longitude coordinates
+    #of the IP
     def getCoords(self, ip, api_key):
         url = "https://api.ipgeolocation.io/v3/ipgeo"
 
@@ -37,6 +40,8 @@ class IPDistances:
             float(data["location"]["longitude"])
         )
 
+    #Given 2 latitude and longitude coordinates, this function
+    #returns the distance between them
     def calcDistance(self, lat1, lon1, lat2, lon2):
         R = 6371.0
 
