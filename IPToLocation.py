@@ -1,4 +1,5 @@
 import requests
+
 from math import radians, sin, cos, sqrt, atan2
 
 class IPDistances:
