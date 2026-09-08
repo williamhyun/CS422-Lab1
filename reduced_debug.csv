@@ -1,0 +1,32 @@
+IP/HOST,PORT,GB/S,CONTINENT,COUNTRY,SITE,PROVIDER
+160.242.19.254,9205-9240,,Africa,AO,Luanda,Paratus
+41.110.39.130,5201,10,Africa,DZ,Algiers,DATAPACKET
+213.158.175.240,5201,10,Africa,EG,Cairo,DATAPACKET
+212.60.92.134,60001-60003,,Africa,GM,Banjul,Pura
+105.235.237.2,5201-5209,,Africa,GQ,Bata,Guineanet
+gw1.malabo.guineanet.net,5201-5209,,Africa,GQ,Bata,Guine@net
+speed.mymanga.pro,9202-9240,,Africa,KE,Nairobi,Mymanga
+speedtestfl.telecom.mu,5201-5209,,Africa,MU,Floreal,Mauritius Telecom
+197.227.12.18,5201-5209,,Africa,MU,Floreal,Mauritius Telecom
+41.210.185.162,5201,2x10,Africa,UG,Kampala,DATAPACKET
+speedtest.hkg12.hk.leaseweb.net,5201-5210,10,Asia,HK,Hong Kong,LeaseWeb
+84.17.57.129,5201,2x10,Asia,HK,Hong Kong,DATAPACKET
+23.249.58.14,30003-30009,10,Asia,HK,Hong Kong,FortiSASE
+iperf3.moji.fr,5200-5240,100,Europe,FR,Paris,moji
+87.249.137.8,5201,2x10,Europe,IE,Dublin,DATAPACKET
+spd-icsrv.hostkey.com,5201-5209,10,Europe,IS,Reykjavik,HOSTKEY
+it1.speedtest.aruba.it,5201,,Europe,IT,Arezzo,Aruba.it
+84.17.59.129,5201,2x10,Europe,IT,Milan,DATAPACKET
+217.61.40.96,5201,,Europe,IT,Ponte San Pietro,Aruba.it
+speed-cb.dimensione.com,5201-5209,10,Europe,IT,Rome,Dimensione
+156.146.40.65,5201,2x10,Europe,SK,Bratislava,DATAPACKET
+speedtest.dal13.us.leaseweb.net,5201-5210,10,North America,US,Dallas,LeaseWeb
+dal.speedtest.clouvider.net,5200-5209,10,North America,US,Dallas,Clouvider
+89.187.164.1,5201,2x10,North America,US,Dallas,DATAPACKET
+speedtest.wdc2.us.leaseweb.net,5201-5210,10,North America,US,Washington,LeaseWeb
+speedtest.lagoon.nc,5202-5210,10,Oceania,NC,Noumea,Lagoon
+akl.linetest.nz,5301-5309,10,Oceania,NZ,Auckland,2Degrees
+72.1.86.46,30001-30009,10,Oceania,NZ,Auckland,FortiSASE
+chch.linetest.nz,5301-5309,10,Oceania,NZ,Christchurch,2Degrees
+154.81.51.4,5201,2x10,Oceania,PG,Port Moresby,DATAPACKET
+103.146.200.98,5201,,Oceania,PG,Port Moresby,DATAPACKET

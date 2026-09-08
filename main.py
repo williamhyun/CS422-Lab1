@@ -45,6 +45,7 @@ if __name__ == "__main__":
 
     try:
         ip_list = fetch_ips(args.path)
+        ip_list.append(local_ip)
     except (OSError, ValueError) as exc:
         raise SystemExit(f"error: {exc}")
 

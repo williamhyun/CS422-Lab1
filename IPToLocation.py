@@ -75,7 +75,7 @@ class IPDistances:
                 )
 
             # Wait 1 second before trying again
-            time.sleep(0.25)
+            time.sleep(0.5)
 
         # All attempts failed
         return None
