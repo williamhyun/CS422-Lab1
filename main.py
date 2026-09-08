@@ -1,3 +1,5 @@
+import argparse
+
 import matplotlib.pyplot as plt
 import IPToLocation
 import PingServers
@@ -26,11 +28,24 @@ def plotDistancesVSRtt(distances_list: list[float], rtt_list: list[float], rtt_t
 
 
 if __name__ == "__main__":
-    api_key = "bd8527edb8f2412c947e3d498ee8839a"
+    """
+    Example usage:
+        python3 main.py servers.json
+        python3 main.py servers.csv
+    """
+    parser = argparse.ArgumentParser(
+        description="Ping a list of servers and plot geographic distance against RTT."
+    )
+    parser.add_argument("path", help="JSON or CSV file listing the servers to measure")
+    args = parser.parse_args()
+
+    api_key = "48c460778462485c897c94cd724fb652"
     local_ip = requests.get("https://api.ipify.org").text
 
-    #Parses IPs and retrieves from https://iperf3serverlist.net/
-    ip_list = fetch_ips()
+    try:
+        ip_list = fetch_ips(args.path)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"error: {exc}")
 
     #Contains list of IPs where coordinates were obtainable and
     #a parallel list of distances from our local IP to another IP

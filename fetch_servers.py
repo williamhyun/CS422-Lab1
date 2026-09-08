@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-"""Return the public iperf3 server list as a plain list of IP addresses.
+"""Read a server list from a JSON or CSV file and return a list of IP addresses.
 
-The upstream site (https://iperf3serverlist.net/) is a React app that loads its
-table from a static export, so we pull the export directly:
+The input file is the iperf3 server list as published by
+https://iperf3serverlist.net/ (its "Export JSON" / "Export CSV" buttons), so
+records look like:
 
-    https://export.iperf3serverlist.net/listed_iperf3_servers.json
-    https://export.iperf3serverlist.net/listed_iperf3_servers.csv
+    {"IP/HOST": "160.242.19.254", "PORT": "9205-9240", "COUNTRY": "AO", ...}
 
-Roughly half of the listed entries are DNS names (e.g. speedtestfl.telecom.mu)
-rather than IP literals, so those are resolved to IPv4 addresses. A name the
-system resolver rejects is retried against public resolvers over the wire,
-which is what recovers names that mDNSResponder has negatively cached; anything
-still unresolved after that is reported on stderr rather than dropped silently.
-Duplicates are dropped, so every element is a distinct address that
-ping/traceroute/geolocation can be pointed at directly.
+Any JSON or CSV file with an IP/HOST column works, as does a JSON array of bare
+addresses. Roughly half of the listed entries are DNS names (e.g.
+speedtestfl.telecom.mu) rather than IP literals, so those are resolved to IPv4
+addresses. A name the system resolver rejects is retried against public
+resolvers over the wire, which is what recovers names that mDNSResponder has
+negatively cached; anything still unresolved after that is reported on stderr
+rather than dropped silently. Duplicates are dropped, so every element is a
+distinct address that ping/traceroute/geolocation can be pointed at directly.
 
 Use as a library:
 
     from fetch_servers import fetch_ips
-    ips = fetch_ips()                      # all servers
-    five = fetch_ips(sample=5, seed=422)   # reproducible random subset
+    ips = fetch_ips("servers.json")
 
 or as a CLI, which prints one address per line:
 
-    ./fetch_servers.py
-    ./fetch_servers.py --sample 5 --seed 422 > ips.txt
+    ./fetch_servers.py servers.json
+    ./fetch_servers.py servers.csv > ips.txt
 
 Standard library only; no pip install required.
 """
@@ -41,16 +41,11 @@ import socket
 import struct
 import sys
 import time
-import urllib.error
-import urllib.request
+from pathlib import Path
 
-JSON_URL = "https://export.iperf3serverlist.net/listed_iperf3_servers.json"
-CSV_URL = "https://export.iperf3serverlist.net/listed_iperf3_servers.csv"
-
-# The export host rejects the default urllib agent.
-USER_AGENT = "Mozilla/5.0 (compatible; CS422-Lab1/1.0)"
-
+# Column names accepted for the host field, in order of preference.
 HOST_KEYS = ("IP/HOST", "IP", "HOST", "HOSTNAME")
+SUPPORTED_SUFFIXES = (".json", ".csv")
 
 # Queried directly, over the wire, when the system resolver fails a name.
 PUBLIC_DNS_SERVERS = ("8.8.8.8", "1.1.1.1")
@@ -62,14 +57,16 @@ DNS_RETRY_ROUNDS = 4
 DNS_RETRY_DELAY = 2.0
 
 
-def fetch_ips(sample: int = 0, seed: int | None = None, timeout: float = 20.0) -> list[str]:
-    """Download the server list and return distinct IP addresses.
+def fetch_ips(path: str | Path) -> list[str]:
+    """Read a server list file and return all of its distinct IP addresses.
 
     Hostnames are resolved to IPv4 and anything that cannot be resolved is
-    skipped. Pass sample to take a random subset, and seed alongside it to make
-    that subset reproducible across runs.
+    skipped. Addresses come back in file order.
+
+    Raises FileNotFoundError if the file is missing and ValueError if it is not
+    readable JSON/CSV carrying a host column.
     """
-    hosts = _download_hosts(timeout=timeout)
+    hosts = read_hosts(path)
     resolved = _resolve_hosts(hosts)
 
     unresolved = [h for h, ip in resolved.items() if not ip]
@@ -91,64 +88,96 @@ def fetch_ips(sample: int = 0, seed: int | None = None, timeout: float = 20.0) -
             seen.add(ip)
             ips.append(ip)
 
-    if sample:
-        random.Random(seed).shuffle(ips)
-        ips = ips[:sample]
     return ips
 
 
-def _download_hosts(timeout: float = 20.0) -> list[str]:
-    """Return the raw IP/HOST column: a mix of IP literals and DNS names.
+def read_hosts(path: str | Path) -> list[str]:
+    """Validate a JSON or CSV server list file and return its host column.
 
-    Tries the JSON export first and falls back to the CSV export, which carries
-    the same rows in a different shape.
+    The values are returned exactly as written, so a mix of IP literals and DNS
+    names is expected. Resolution happens later, in fetch_ips.
     """
-    errors: list[str] = []
-    for url in (JSON_URL, CSV_URL):
-        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                payload = response.read()
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            errors.append(f"{url}: {exc}")
-            continue
-        try:
-            hosts = _parse_hosts(payload, url)
-        except (json.JSONDecodeError, csv.Error, ValueError) as exc:
-            errors.append(f"{url}: malformed data ({exc})")
-            continue
-        if hosts:
-            return hosts
-        errors.append(f"{url}: no hosts found")
-    raise RuntimeError("could not fetch the iperf3 server list -> " + "; ".join(errors))
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"no such file: {path}")
+    if not path.is_file():
+        raise ValueError(f"not a regular file: {path}")
 
+    suffix = path.suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        expected = " or ".join(SUPPORTED_SUFFIXES)
+        raise ValueError(
+            f"unsupported file type '{suffix or path.name}': expected {expected}"
+        )
 
-def _parse_hosts(payload: bytes, source: str = "") -> list[str]:
-    """Pull the host column out of a JSON or CSV export body."""
-    text = payload.decode("utf-8-sig", errors="replace").strip()
-    if source.endswith(".json") or text[:1] in "[{":
-        data = json.loads(text)
-        records = data.get("servers", data) if isinstance(data, dict) else data
-        if not isinstance(records, list):
-            raise ValueError("expected a list of server records")
-    else:
-        records = list(csv.DictReader(io.StringIO(text)))
+    try:
+        # utf-8-sig strips the byte-order mark that spreadsheet exports add.
+        text = path.read_text(encoding="utf-8-sig", errors="replace")
+    except OSError as exc:
+        raise ValueError(f"could not read {path}: {exc}") from exc
+    if not text.strip():
+        raise ValueError(f"{path} is empty")
+
+    records = _parse_json(text, path) if suffix == ".json" else _parse_csv(text, path)
+    if not records:
+        raise ValueError(f"{path} contained no server records")
 
     hosts = []
     for record in records:
-        if isinstance(record, dict):
-            host = _host_of(record)
-            if host:
-                hosts.append(host)
+        host = record if isinstance(record, str) else _host_of(record)
+        host = host.strip().rstrip(".")
+        if host:
+            hosts.append(host)
+    if not hosts:
+        raise ValueError(
+            f"{path} has no usable host values; expected a "
+            f"{' / '.join(HOST_KEYS)} column"
+        )
     return hosts
 
 
+def _parse_json(text: str, path: Path) -> list:
+    """Parse a JSON server list: a list of records, or of bare addresses."""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
+
+    # Tolerate the list being wrapped, as in {"servers": [...]}.
+    records = data.get("servers", data) if isinstance(data, dict) else data
+    if not isinstance(records, list):
+        raise ValueError(f"{path} should hold a list of servers, found {type(records).__name__}")
+    usable = [r for r in records if isinstance(r, (dict, str))]
+    if not usable:
+        raise ValueError(f"{path} holds no objects or address strings")
+    return usable
+
+
+def _parse_csv(text: str, path: Path) -> list[dict]:
+    """Parse a CSV server list, which must have a header naming the host column."""
+    try:
+        reader = csv.DictReader(io.StringIO(text))
+        fieldnames = reader.fieldnames or []
+        rows = list(reader)
+    except csv.Error as exc:
+        raise ValueError(f"{path} is not valid CSV: {exc}") from exc
+
+    headers = {(name or "").strip().upper() for name in fieldnames}
+    if not headers & set(HOST_KEYS):
+        found = ", ".join(fieldnames) if fieldnames else "none"
+        raise ValueError(
+            f"{path} has no host column; expected one of "
+            f"{', '.join(HOST_KEYS)} but the header is: {found}"
+        )
+    return rows
+
+
 def _host_of(record: dict) -> str:
-    """Read the host field, tolerating upstream header drift."""
+    """Read the host field, tolerating header drift between exports."""
     for key in HOST_KEYS:
         for actual, value in record.items():
             if actual and actual.strip().upper() == key:
-                return str(value or "").strip().rstrip(".")
+                return str(value or "").strip()
     return ""
 
 
@@ -272,27 +301,21 @@ def _resolve_hosts(hosts: list[str]) -> dict[str, str | None]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Print the iperf3 server list as one IP address per line.",
+        description="Read a JSON/CSV server list and print one IP address per line.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "-n", "--sample", type=int, default=0,
-        help="pick this many random addresses (0 keeps all)",
-    )
-    parser.add_argument("--seed", type=int, help="RNG seed, for a reproducible sample")
+    parser.add_argument("path", help="JSON or CSV file listing the servers")
     args = parser.parse_args(argv)
 
     try:
-        ips = fetch_ips(sample=args.sample, seed=args.seed)
-    except RuntimeError as exc:
+        ips = fetch_ips(args.path)
+    except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
     if not ips:
-        print("error: server list downloaded but no addresses resolved", file=sys.stderr)
+        print(f"error: no addresses resolved from {args.path}", file=sys.stderr)
         return 1
-    if args.sample and args.sample > len(ips):
-        print(f"warning: asked for {args.sample} but only {len(ips)} available", file=sys.stderr)
 
     print("\n".join(ips))
     print(f"({len(ips)} addresses)", file=sys.stderr)
