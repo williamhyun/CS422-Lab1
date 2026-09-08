@@ -17,7 +17,7 @@ def plotDistancesVSRtt(distances_list: list[float], rtt_list: list[float]):
 
 
 if __name__ == "__main__":
-    api_key = "48c460778462485c897c94cd724fb652"
+    api_key = "bd8527edb8f2412c947e3d498ee8839a"
     local_ip = requests.get("https://api.ipify.org").text
 
     #Parses IPs and retrieves from https://iperf3serverlist.net/
