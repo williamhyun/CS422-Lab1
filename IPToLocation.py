@@ -9,10 +9,24 @@ class IPDistances:
         self.distances_list = []    #Parallel list to ip_list
 
         #Obtain local coordinates
-        local_lat, local_lon = self.getCoords(local_ip, api_key)
+        local_coords = self.getCoords(local_ip, api_key)
+
+        #Could not find local coords
+        if (local_coords == None):
+            raise ValueError("Could not get coordinates for local IP")
+            
+        
+        local_lat, local_lon = local_coords
 
         for ip in self.ip_list:
-            remote_ip_lat, remote_ip_lon = self.getCoords(ip, api_key)
+            coords = self.getCoords(ip, api_key)
+
+            #check bad server response
+            if (coords == None):                            #I'm not sure how you guys wanted to handle this so for now I'll just store a None
+                self.distances_list.append(None)
+                continue
+
+            remote_ip_lat, remote_ip_lon = coords
 
             self.distances_list.append(self.calcDistance(local_lat, local_lon, remote_ip_lat, remote_ip_lon))
 
