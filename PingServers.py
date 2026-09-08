@@ -59,11 +59,7 @@ def getPingIPDistanceLists(
     new_ip_distances = []
     new_ip_list = []
 
-    ping_num = 0
     for ip, distance in zip(ip_list, ip_distances):
-        print(ping_num)
-        ping_num += 1
-
         ping_ip = PingIP(ip)
 
         # If ping failed, don't add this IP or its distance
