@@ -18,10 +18,10 @@ class PingIP:
     def ping_server(self, ip: str):
         try:
             result = subprocess.run(
-                ["ping", "-c", "10", ip],
+                ["ping", "-c", "10", "-i", "0.5", ip],
                 capture_output=True,
                 text=True,
-                timeout=20
+                timeout=10
             )
 
             # Output example:
@@ -46,7 +46,33 @@ class PingIP:
             print(f"{ip} timed out")
             return None
 
+#Returns 3 lists:
+  #new_ping_ip_list: list PingIP objects where its IP was pingable
+  #new_ip_distances: list of distances between local to remote IP that were pingable
+  #new_ip_list: list of IPs that were pingable
+def getPingIPDistanceLists(
+    ip_distances: list[float],
+    ip_list: list[str]
+) -> tuple[list[PingIP], list[float], list[str]]:
 
-def getPingIPList(ip_list: list[str]) -> list[PingIP]:
-    ping_ip_list = [PingIP(ip) for ip in ip_list]
-    return ping_ip_list
+    new_ping_ip_list = []
+    new_ip_distances = []
+    new_ip_list = []
+
+    ping_num = 0
+    for ip, distance in zip(ip_list, ip_distances):
+        print(ping_num)
+        ping_num += 1
+
+        ping_ip = PingIP(ip)
+
+        # If ping failed, don't add this IP or its distance
+        if ping_ip.avg_rtt is None:
+            print(f"Removing {ip}: could not ping")
+            continue
+
+        new_ping_ip_list.append(ping_ip)
+        new_ip_list.append(ip)
+        new_ip_distances.append(distance)
+
+    return new_ping_ip_list, new_ip_distances, new_ip_list
