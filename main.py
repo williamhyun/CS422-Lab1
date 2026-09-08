@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import IPToLocation
 import PingServers
 import requests
+import Latency_Breakdown
 
 from fetch_servers import fetch_ips
 
@@ -35,3 +36,15 @@ if __name__ == "__main__":
     #print(ip_list)
     #print(len(ip_distances.distances_list))
     #print(ip_distances.distances_list)
+
+    print("Moving onto Q2")
+
+    #Q2:
+    results = Latency_Breakdown.find_and_print_random(ip_list, n = 5)
+    Latency_Breakdown.plot_stacked_bar_chart(results)
+    Latency_Breakdown.plot_scatter_hop_vs_rtt(results)
+
+
+
+
+
