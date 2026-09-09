@@ -6,30 +6,53 @@ import re
 import platform
 import matplotlib.pyplot as plt
 
+#Bound the traceroute so it finishes on its own rather than being killed part way
+#through. Worst case is MAX_HOPS * PROBES_PER_HOP * PROBE_WAIT_SECONDS = 180s, so
+#the timeout below is a last resort instead of the usual outcome.
+MAX_HOPS = 30
+PROBES_PER_HOP = 3
+PROBE_WAIT_SECONDS = 2
+TRACEROUTE_TIMEOUT = 240
+
 '''
     Given an ip adress try to find its RTT for every stop
     Returns a list of dicts: [, ...]
     Each entry in the list represents a single dictionary in the form {'hop': (Which hop), 'ip': (IP), 'rtts': (List of RTT values)}
+    Only returns hops if traceroute completed and the destination itself answered.
 '''
 def ping_ip(dest_ip):
-    #Find which platform is being used (-n for windows -c for mac/linux)
-    command = ""
     is_windows = platform.system().lower() == "windows"
+
     if is_windows:
-        command = ["tracert", "-d", dest_ip]
+        # tracert already uses ICMP Echo; -w is milliseconds
+        command = ["tracert", "-d", "-h", str(MAX_HOPS),
+                   "-w", str(PROBE_WAIT_SECONDS * 1000), dest_ip]
     else:
-        command = ["traceroute", "-n", dest_ip]
+        command = ["traceroute", "-n", "-I", "-m", str(MAX_HOPS),
+                   "-q", str(PROBES_PER_HOP), "-w", str(PROBE_WAIT_SECONDS), dest_ip]
 
-
-    hops = []
     try:
-        #Attempt to run trace route and store its stdout
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30).stdout
-    except Exception as e:
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, timeout=TRACEROUTE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        print(f"{dest_ip}: non-responsive (timeout)")
+        return []
+    except OSError as e:
         print(f"Failed to run traceroute for {dest_ip}: {e}")
-        return hops
+        return []
+
+    hops = parse_hops(result.stdout, is_windows)
+    if not reached_destination(dest_ip, hops):
+        print(f"{dest_ip}: non-responsive")
+        return []
+    return hops
 
 
+'''
+    Parse traceroute/tracert stdout into the list of hop dicts described above
+'''
+def parse_hops(result, is_windows):
+    hops = []
     lines = result.splitlines()
 
     #Every line is a hop, so for every hop:
@@ -54,13 +77,13 @@ def ping_ip(dest_ip):
                 # Extract all ms values
                 rtts = [float(val) for val in re.findall(r"([0-9]+)\s*ms", metrics_str)]
 
-                # SKIP if hop timed out / has no RTTs / is an asterisk
+                # "*" hops are not responding to icmp; skip them and keep tracing
                 if not rtts or hop_ip == "*":
                     continue
 
                 hops.append({"hop": hop_num, "ip": hop_ip, "rtts": rtts})
 
-        else: #(not windows)
+        else:
             # Linux/Mac line format example: " 1  192.168.1.1  1.123 ms  1.054 ms"
             #Use regular expression to pick information
             match = re.search(r"^\s*(\d+)\s+(?:([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)|\*)", line)
@@ -73,7 +96,7 @@ def ping_ip(dest_ip):
                 # Extract all millisecond values
                 rtts = [float(val) for val in re.findall(r"([0-9]+\.[0-9]+)\s*ms", line)]
 
-                # SKIP if hop timed out / has no RTTs
+                # "*" hops are not responding to icmp; skip them and keep tracing
                 if not rtts or not hop_ip:
                     continue
 
@@ -82,6 +105,14 @@ def ping_ip(dest_ip):
     return hops
 
 
+
+
+'''
+    True when the destination itself answered ICMP.
+    Intermediate "*" hops may be missing; that is fine.
+'''
+def reached_destination(dest_ip, hops):
+    return any(hop["ip"] == dest_ip for hop in hops)
 
 
 '''
@@ -111,11 +142,12 @@ def find_random_rtt(ip_list, n = 5):
 
 
         #get trace route
-        result = ping_ip(ip_list[attempt])
-        if (len(result) == 0):
+        dest_ip = ip_list[attempt]
+        result = ping_ip(dest_ip)
+        if not result:
             continue
 
-        results.append((ip_list[attempt], result))
+        results.append((dest_ip, result))
         valid_traces += 1
 
     return results
@@ -161,8 +193,9 @@ def plot_stacked_bar_chart(results):
     # latency added by each specific hop (current hop RTT - previous hop RTT).
     for dest_ip, hops in results:
         current_bottom = 0.0
-        
-        for hop in hops:
+        dest_idx = next(i for i, hop in enumerate(hops) if hop["ip"] == dest_ip)
+
+        for hop in hops[: dest_idx + 1]:
             avg_rtt = average_list(hop['rtts'])
             
             # Use max(0, ...) to avoid negative bar chart stacks if a router prioritizes 
@@ -196,13 +229,10 @@ def plot_scatter_hop_vs_rtt(results):
     final_rtts = []
 
     for dest_ip, hops in results:
+        dest_hop = next(hop for hop in hops if hop["ip"] == dest_ip)
         dest_ips.append(dest_ip)
-        
-        # The final hop count is simply the hop number of the very last recorded hop
-        final_hop_counts.append(hops[-1]['hop']) 
-        
-        final_destination_rtt = average_list(hops[-1]['rtts'])
-        final_rtts.append(final_destination_rtt)
+        final_hop_counts.append(dest_hop["hop"])
+        final_rtts.append(average_list(dest_hop["rtts"]))
 
     plt.figure(figsize=(8, 6))
     plt.scatter(final_hop_counts, final_rtts, color='red', s=100)
