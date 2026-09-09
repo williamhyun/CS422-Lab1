@@ -181,7 +181,7 @@ def plot_stacked_bar_chart(results):
     plt.xticks(rotation=15)
     
     plt.tight_layout()
-    plt.savefig("stacked_bar_chart.png", dpi=300)
+    plt.savefig("stacked_bar_chart.pdf", dpi=300)
     plt.close()
 
 
@@ -201,14 +201,8 @@ def plot_scatter_hop_vs_rtt(results):
         # The final hop count is simply the hop number of the very last recorded hop
         final_hop_counts.append(hops[-1]['hop']) 
         
-        # Calculate the final RTT. We use the max observed RTT in the chain to keep 
-        # it consistent with the bar chart logic.
-        current_max_rtt = 0.0
-        for hop in hops:
-            avg_rtt = average_list(hop['rtts'])
-            current_max_rtt = max(current_max_rtt, avg_rtt)
-            
-        final_rtts.append(current_max_rtt)
+        final_destination_rtt = average_list(hops[-1]['rtts'])
+        final_rtts.append(final_destination_rtt)
 
     plt.figure(figsize=(8, 6))
     plt.scatter(final_hop_counts, final_rtts, color='red', s=100)
@@ -224,7 +218,7 @@ def plot_scatter_hop_vs_rtt(results):
     plt.grid(True, linestyle='--', alpha=0.6)
     
     plt.tight_layout()
-    plt.savefig("Scatter.png", dpi=300)
+    plt.savefig("Scatter.pdf", dpi=300)
     plt.close()
 
 
